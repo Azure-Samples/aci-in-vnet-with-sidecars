@@ -28,9 +28,9 @@ There are 6 steps in the [00-deploy_app.yml](.github/workflows/00-deploy_app.yml
     - Azure Key Vault
     - Azure Application Gateway
 - [02-build_images.yml](.github/workflows/02-build_images.yml): builds the images for the applications in this project and pushes them to the Azure Container Registry created in the previous step. The applications built are:
-    - [api](../api)
-    - [web](../web)
-    - [dash](../dash)
+    - [api](./api/)
+    - [web](./web/)
+    - [dash](./dash/)
 - [03-gen_cert.yml](.github/workflows/03-gen_cert.yml): [LetsEncrypt](https://letsencrypt.org/) certificates will be generated for the domain specified in the environment variables. The certificate will be stored in the Azure Key Vault.
 - [04-deploy_images.yml](.github/workflows/04-deploy_images.yml): the images build in step 2 will be configured will the certificates generated in step 3 and will be deployed to the Virtual Network using YAML.
 - [05-config_appgw.yml](.github/workflows/05-config_appgw.yml): the Azure Application Gateway will be configured to send traffic to the deployed Azure Container Instances
