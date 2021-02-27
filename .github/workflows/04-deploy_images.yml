@@ -1,0 +1,44 @@
+name: 04 - Deploy images
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+env:
+  resource_group: acilab
+  location: westeurope
+  repo_name: acilab
+  public_domain: "cloudtrooper.net"
+  private_domain: "cloudtrooper.net"
+
+jobs:
+  deploy_images:
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: "Deploy images to ACI"
+        uses: azure/CLI@v1
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/deploy_images.sh
+            $GITHUB_WORKSPACE/scripts/deploy_images.sh \
+                -g=${{ env.resource_group }} \
+                -l=${{ env.location }} \
+                -r=${{ env.repo_name }} \
+                -u=${{ secrets.SQL_USERNAME }} \
+                -p=${{ secrets.SQL_PASSWORD }} \
+                -z=${{ env.private_domain }} \
+                -d=${{ env.public_domain }}

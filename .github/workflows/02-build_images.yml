@@ -1,0 +1,35 @@
+name: 02 - Build images
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+env:
+  resource_group: acilab
+  repo_name: acilab
+
+jobs:
+  build_images:
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: Build images to ACR
+        uses: azure/CLI@v1
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/build_images.sh
+            $GITHUB_WORKSPACE/scripts/build_images.sh \
+                -g=${{ env.resource_group }} \
+                -r=${{ env.repo_name }} \
+                -d=$GITHUB_WORKSPACE

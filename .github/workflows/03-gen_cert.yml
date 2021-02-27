@@ -1,0 +1,53 @@
+name: 03 - Generate certificates
+
+on:
+  # workflow_dispatch:
+  #   inputs: {}
+  workflow_run:
+    workflows: ["Deploy infrastructure"]
+    # branches: [main]
+    types: 
+      - completed
+env:
+  resource_group: acilab
+  cert_email: "jose.moreno@microsoft.com"
+  cert_domain: "cloudtrooper.net"
+  cert_staging: no
+  cert_key_passphrase: no
+  cert_force_creation: no
+
+jobs:
+  generate_certs:
+    if: ${{ github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Install certbot and get certificate
+      - name: "Get cert from LetsEncrypt"
+        uses: azure/CLI@v1
+        with:
+          azcliversion: latest
+          inlineScript: |
+            apk add python3 python3-dev py3-pip build-base libressl-dev musl-dev libffi-dev jq
+            pip3 install pip --upgrade
+            pip3 install certbot
+            mkdir /etc/letsencrypt
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_generate.sh
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_auth.sh
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_cleanup.sh
+            $GITHUB_WORKSPACE/scripts/certbot_generate.sh \
+                -g=${{ env.resource_group }} \
+                -e=${{ env.cert_email }} \
+                -d=${{ env.cert_domain }} \
+                -s=${{ env.cert_staging }} \
+                -f=${{ env.cert_force_creation }} \
+                -p=${{ env.cert_key_passphrase }}

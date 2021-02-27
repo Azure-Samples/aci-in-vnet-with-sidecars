@@ -1,0 +1,38 @@
+name: 05 - Configure App Gateway
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+env:
+  resource_group: acilab
+  public_domain: "cloudtrooper.net"
+  private_domain: "cloudtrooper.net"
+
+jobs:
+  config_appgw:
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: "Configure App GW rules"
+        uses: azure/CLI@v1
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/config_appgw.sh
+            $GITHUB_WORKSPACE/scripts/config_appgw.sh \
+                -g=${{ env.resource_group }} \
+                -z=${{ env.private_domain }} \
+                -d=${{ env.public_domain }}

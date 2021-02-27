@@ -1,0 +1,193 @@
+name: Deploy full app
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+env:
+  resource_group: acilab
+  location: westeurope
+  public_domain: "cloudtrooper.net"
+  private_domain: "cloudtrooper.net"
+  cert_email: "jose.moreno@microsoft.com"
+  cert_domain: "cloudtrooper.net"
+  cert_staging: no
+  cert_key_passphrase: no
+  cert_force_creation: no
+  repo_name: acilab
+
+jobs:
+  create_infra:
+    name: Infra
+    runs-on: ubuntu-latest
+    steps:
+
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Run script in repo
+      - name: "Deploy infrastructure"
+        uses: azure/CLI@v1
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/init_rg.sh
+            $GITHUB_WORKSPACE/scripts/init_rg.sh \
+                -g=${{ env.resource_group }} \
+                -l=${{ env.location }} \
+                -u=${{ secrets.SQL_USERNAME }} \
+                -p=${{ secrets.SQL_PASSWORD }} \
+                -z=${{ env.private_domain }} \
+                -d=${{ env.public_domain }}
+
+  generate_certs:
+    name: Certs
+    needs: create_infra
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+
+      # Install certbot and get certificate
+      - name: "Get cert from LetsEncrypt"
+        uses: azure/CLI@v1
+        with:
+          azcliversion: latest
+          inlineScript: |
+            apk add python3 python3-dev py3-pip build-base libressl-dev musl-dev libffi-dev jq
+            pip3 install pip --upgrade
+            pip3 install certbot
+            mkdir /etc/letsencrypt
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_generate.sh
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_auth.sh
+            chmod +x $GITHUB_WORKSPACE/scripts/certbot_cleanup.sh
+            $GITHUB_WORKSPACE/scripts/certbot_generate.sh \
+                -g=${{ env.resource_group }} \
+                -e=${{ env.cert_email }} \
+                -d=${{ env.cert_domain }} \
+                -s=${{ env.cert_staging }} \
+                -f=${{ env.cert_force_creation }} \
+                -p=${{ env.cert_key_passphrase }}
+
+  build_images:
+    name: Build Images
+    needs: generate_certs
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: Build images into ACR
+        uses: azure/CLI@v1
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/build_images.sh
+            $GITHUB_WORKSPACE/scripts/build_images.sh \
+                -g=${{ env.resource_group }} \
+                -r=${{ env.repo_name }} \
+                -d=$GITHUB_WORKSPACE
+
+  deploy_images:
+    name: Deploy Images
+    needs: build_images
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: "Deploy images to ACI"
+        uses: azure/CLI@v1
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/deploy_images.sh
+            $GITHUB_WORKSPACE/scripts/deploy_images.sh \
+                -g=${{ env.resource_group }} \
+                -l=${{ env.location }} \
+                -r=${{ env.repo_name }} \
+                -u=${{ secrets.SQL_USERNAME }} \
+                -p=${{ secrets.SQL_PASSWORD }} \
+                -z=${{ env.private_domain }} \
+                -d=${{ env.public_domain }}
+
+  config_appgw:
+    name: Config AppGW
+    needs: deploy_images
+    runs-on: ubuntu-latest
+    steps:
+      # checkout branch
+      - name: git checkout main branch
+        uses: actions/checkout@v2
+
+      # log into Azure
+      - name: "Login via Azure CLI"
+        uses: azure/login@v1
+        with:
+          creds: ${{ secrets.AZURE_CREDENTIALS }}
+  
+      # Run script in repo
+      - name: "Configure App GW rules"
+        uses: azure/CLI@v1
+        env:
+          AZURE_CREDENTIALS: ${{ secrets.AZURE_CREDENTIALS }}
+        with:
+          azcliversion: latest
+          inlineScript: |
+            chmod +x $GITHUB_WORKSPACE/scripts/config_appgw.sh
+            $GITHUB_WORKSPACE/scripts/config_appgw.sh \
+                -g=${{ env.resource_group }} \
+                -z=${{ env.private_domain }} \
+                -d=${{ env.public_domain }}
+
+  test_app:
+    name: Test app
+    needs: config_appgw
+    runs-on: ubuntu-latest
+    steps:
+    - name: "Send application traffic"
+      run: |
+        curl -sk "https://appgw.${public_domain}/api/healthcheck"
+        curl -sk "https://appgw.${public_domain}/api/sqlsrcip"
+        curl -sk "https://appgw.${public_domain}/api/sqlsrcipinit"
+        for i in {1..120}
+        do
+          curl -sk "https://appgw.${public_domain}/api/sqlsrciplog"
+          sleep 1
+        done
+
+
+
+

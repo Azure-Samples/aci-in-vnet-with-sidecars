@@ -1,0 +1,23 @@
+name: 06 - Application Test
+
+on:
+  workflow_dispatch:
+    inputs: {}
+
+jobs:
+  test-app:
+    name: Test app
+    runs-on: ubuntu-latest
+    steps:
+    - name: Send some traffic
+      env:
+        public_domain: "cloudtrooper.net"
+      run: |
+        curl -sk "https://appgw.${public_domain}/api/healthcheck"
+        curl -sk "https://appgw.${public_domain}/api/sqlsrcip"
+        curl -sk "https://appgw.${public_domain}/api/sqlsrcipinit"
+        for i in {1..120}
+        do
+          curl -sk "https://appgw.${public_domain}/api/sqlsrciplog"
+          sleep 1
+        done
