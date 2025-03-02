@@ -1,6 +1,6 @@
 # ACI in VNet with Sidecar Containers
 
-This repo is showing some advanced features of Azure Container Instances, amongst others:
+Sidecar containers are a common pattern used by containerized workloads where different functionalities are implemented in separate containers in the samem pod or container group. If you want to know more about sidecars you can visit [Modernize web apps using Sidecar patterns](https://mslabs.cloudguides.com/guides/Modernize%20existing%20web%20apps%20with%20new%20capabilities%20using%20Sidecar%20patterns). The sidecar pattern can be implemented in Kubernetes, but also in Azure Container Instances. This repo is showing some advanced features of Azure Container Instances including sidecars:
 
 - Advanced scheduling of ACIs including:
     - Init containers
